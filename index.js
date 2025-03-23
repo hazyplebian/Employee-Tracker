@@ -134,4 +134,356 @@ async function viewEmployees() {
     console.table(res.rows);
     await mainMenu();
 }
+async function addDepartment() {
+    const { confirm } = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'confirm',
+            message: 'Do you want to add a new department?',
+            default: false
+        }
+    ]);
+    if (!confirm) return mainMenu();
+
+    const { name } = await inquirer.prompt([
+        {
+            type: 'input',
+            name: 'name',
+            message: 'What is the name of the department?'
+        }
+    ]);
+    const queryText = getQuery('addDepartment');
+    await pool.query(queryText, [name]);
+    console.log(`Department '${name}' was added to the database!`);
+    await mainMenu();
+}
+
+async function addRole() {
+    const { confirm } = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'confirm',
+            message: 'Do you want to add a new role?',
+            default: false
+        }
+    ]);
+    if (!confirm) return mainMenu();
+
+    const depQuery = getQuery('viewDepartments');
+    const departmentsRes = await pool.query(depQuery);
+    const departmentChoices = departmentsRes.rows.map(dept => ({ name: dept.name, value: dept.id }));
+
+    const { title, salary, department_id } = await inquirer.prompt([
+        {
+            type: 'input',
+            name: 'title',
+            message: 'What is the title of the role?'
+        },
+        {
+            type: 'input',
+            name: 'salary',
+            message: 'What is the salary of the role?'
+        },
+        {
+            type: 'list',
+            name: 'department_id',
+            message: 'What department does this role belong to?',
+            choices: departmentChoices
+        }
+    ]);
+    const queryText = getQuery('addRole');
+    await pool.query(queryText, [title, salary, department_id]);
+    console.log(`The role '${title}' was added to the database!`);
+    await mainMenu();
+}
+
+async function addEmployee() {
+    const { confirm } = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'confirm',
+            message: 'Do you want to add a new employee?',
+            default: false
+        }
+    ]);
+    if (!confirm) return mainMenu();
+
+    const employeesRes = await pool.query('SELECT id, first_name, last_name FROM employee');
+    const rolesRes = await pool.query(getQuery('viewRoles'));
+    const roleChoices = rolesRes.rows.map(role => ({ name: role.title, value: role.id }));
+    const managerChoices = employeesRes.rows.map(emp => ({
+        name: `${emp.first_name} ${emp.last_name}`,
+        value: emp.id
+    }));
+    managerChoices.unshift({ name: 'None', value: null });
+
+    const { first_name, last_name, role_id, manager_id } = await inquirer.prompt([
+        {
+            type: 'input',
+            name: 'first_name',
+            message: 'What is the first name of the employee?'
+        },
+        {
+            type: 'input',
+            name: 'last_name',
+            message: 'What is the last name of the employee?'
+        },
+        {
+            type: 'list',
+            name: 'role_id',
+            message: 'What is the role of the employee?',
+            choices: roleChoices
+        },
+        {
+            type: 'list',
+            name: 'manager_id',
+            message: 'Who is the manager of the employee?',
+            choices: managerChoices
+        }
+    ]);
+    const queryText = getQuery('addEmployee');
+    await pool.query(queryText, [first_name, last_name, role_id, manager_id]);
+    console.log(`Employee '${first_name} ${last_name}' was added to the database!`);
+    await mainMenu();
+}
+
+async function updateEmployeeRole() {
+    const employeesRes = await pool.query('SELECT id, first_name, last_name FROM employee');
+    const rolesRes = await pool.query(getQuery('viewRoles'));
+    const employeeChoices = employeesRes.rows.map(emp => ({
+        name: `${emp.first_name} ${emp.last_name}`,
+        value: emp.id
+    }));
+    employeeChoices.unshift({ name: 'Exit', value: null });
+    const roleChoices = rolesRes.rows.map(role => ({ name: role.title, value: role.id }));
+    const managerChoices = employeesRes.rows.map(emp => ({
+        name: `${emp.first_name} ${emp.last_name}`,
+        value: emp.id
+    }));
+    managerChoices.unshift({ name: 'None', value: null });
+
+    const { employee_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'employee_id',
+            message: "Which employee's role would you like to update?",
+            choices: employeeChoices
+        }
+    ]);
+    if (employee_id === null) return mainMenu();
+
+    const { new_role_id, new_manager_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'new_role_id',
+            message: 'What is the new role of the employee?',
+            choices: roleChoices
+        },
+        {
+            type: 'list',
+            name: 'new_manager_id',
+            message: 'Who is the new manager of the employee?',
+            choices: managerChoices
+        }
+    ]);
+    const queryText = getQuery('updateEmployeeRole');
+    await pool.query(queryText, [new_role_id, new_manager_id, employee_id]);
+    const selectedEmployee = employeeChoices.find(emp => emp.value === employee_id);
+    console.log(`Employee role for '${selectedEmployee.name}' has been updated!`);
+    await mainMenu();
+}
+
+async function updateEmployeeManager() {
+    const employeesRes = await pool.query('SELECT id, first_name, last_name FROM employee');
+    const employeeChoices = employeesRes.rows.map(emp => ({
+        name: `${emp.first_name} ${emp.last_name}`,
+        value: emp.id
+    }));
+    employeeChoices.unshift({ name: 'Exit', value: null });
+    const { employee_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'employee_id',
+            message: "Which employee's manager would you like to update?",
+            choices: employeeChoices
+        }
+    ]);
+    if (employee_id === null) return mainMenu();
+
+    const managerChoices = employeesRes.rows
+        .filter(emp => emp.id !== employee_id)
+        .map(emp => ({ name: `${emp.first_name} ${emp.last_name}`, value: emp.id }));
+    managerChoices.unshift({ name: 'None', value: null });
+
+    const { new_manager_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'new_manager_id',
+            message: 'Who is the new manager of the employee?',
+            choices: managerChoices
+        }
+    ]);
+    const queryText = getQuery('updateEmployeeManager');
+    await pool.query(queryText, [new_manager_id, employee_id]);
+    const selectedEmployee = employeeChoices.find(emp => emp.value === employee_id);
+    console.log(`Employee manager for '${selectedEmployee.name}' has been updated!`);
+    await mainMenu();
+}
+
+async function viewEmployeesByManager() {
+    const managersRes = await pool.query(`
+        SELECT DISTINCT manager.id, manager.first_name, manager.last_name
+        FROM employee
+        INNER JOIN employee AS manager ON employee.manager_id = manager.id
+    `);
+    const managerChoices = managersRes.rows.map(manager => ({
+        name: `${manager.first_name} ${manager.last_name}`,
+        value: manager.id
+    }));
+    managerChoices.unshift({ name: 'Exit', value: null });
+    const { manager_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'manager_id',
+            message: 'Select a manager to view their employees:',
+            choices: managerChoices
+        }
+    ]);
+    if (manager_id === null) return mainMenu();
+
+    const queryText = getQuery('viewEmployeesByManager');
+    const res = await pool.query(queryText, [manager_id]);
+    console.table(res.rows);
+    await mainMenu();
+}
+
+async function viewEmployeesByDepartment() {
+    const departmentsRes = await pool.query(getQuery('viewDepartments'));
+    const departmentChoices = departmentsRes.rows.map(dept => ({
+        name: dept.name,
+        value: dept.id
+    }));
+    departmentChoices.unshift({ name: 'Exit', value: null });
+    const { department_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'department_id',
+            message: 'Select a department to view its employees:',
+            choices: departmentChoices
+        }
+    ]);
+    if (department_id === null) return mainMenu();
+
+    const queryText = getQuery('viewEmployeesByDepartment');
+    const res = await pool.query(queryText, [department_id]);
+    console.table(res.rows);
+    await mainMenu();
+}
+
+async function viewDepartmentBudget() {
+    const departmentsRes = await pool.query(getQuery('viewDepartments'));
+    const departmentChoices = departmentsRes.rows.map(dept => ({
+        name: dept.name,
+        value: dept.id
+    }));
+    departmentChoices.unshift({ name: 'Exit', value: null });
+    const { department_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'department_id',
+            message: 'Select a department to view its total utilized budget:',
+            choices: departmentChoices
+        }
+    ]);
+    if (department_id === null) return mainMenu();
+
+    const queryText = getQuery('viewDepartmentBudget');
+    const res = await pool.query(queryText, [department_id]);
+    console.table(res.rows);
+    await mainMenu();
+}
+
+async function deleteDepartment() {
+    const departmentsRes = await pool.query(getQuery('viewDepartments'));
+    const departmentChoices = departmentsRes.rows.map(dept => ({
+        name: dept.name,
+        value: dept.id
+    }));
+
+    if (!departmentChoices.some(choice => choice.name === 'None')) {
+        departmentChoices.unshift({ name: 'None', value: null });
+    }
+    const { department_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'department_id',
+            message: 'Which department would you like to delete?',
+            choices: departmentChoices
+        }
+    ]);
+    if (department_id === null) {
+        console.log('No departments were deleted!');
+        return mainMenu();
+    }
+    const selectedDepartment = departmentChoices.find(dept => dept.value === department_id);
+    const queryText = getQuery('deleteDepartment');
+    await pool.query(queryText, [department_id]);
+    console.log(`Department '${selectedDepartment.name}' has been deleted!`);
+    await mainMenu();
+}
+
+async function deleteRole() {
+    const rolesRes = await pool.query(getQuery('viewRoles'));
+    const roleChoices = rolesRes.rows.map(role => ({
+        name: role.title,
+        value: role.id
+    }));
+    if (!roleChoices.some(choice => choice.name === 'None')) {
+        roleChoices.unshift({ name: 'None', value: null });
+    }
+    const { role_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'role_id',
+            message: 'Which role would you like to delete?',
+            choices: roleChoices
+        }
+    ]);
+    if (role_id === null) {
+        console.log('No roles were deleted!');
+        return mainMenu();
+    }
+    const selectedRole = roleChoices.find(role => role.value === role_id);
+    const queryText = getQuery('deleteRole');
+    await pool.query(queryText, [role_id]);
+    console.log(`Role '${selectedRole.name}' has been deleted!`);
+    await mainMenu();
+}
+
+async function deleteEmployee() {
+    const employeesRes = await pool.query('SELECT id, first_name, last_name FROM employee');
+    const employeeChoices = employeesRes.rows.map(emp => ({
+        name: `${emp.first_name} ${emp.last_name}`,
+        value: emp.id
+    }));
+    employeeChoices.unshift({ name: 'None', value: null });
+    const { employee_id } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'employee_id',
+            message: 'Which employee would you like to terminate?',
+            choices: employeeChoices
+        }
+    ]);
+    if (employee_id === null) {
+        console.log("No employee's were terminated! :)");
+        return mainMenu();
+    }
+    const selectedEmployee = employeeChoices.find(emp => emp.value === employee_id);
+    const queryText = getQuery('deleteEmployee');
+    await pool.query(queryText, [employee_id]);
+    console.log(`Employee '${selectedEmployee.name}' has been terminated! :(`);
+    await mainMenu();
+}
+
 mainMenu();
