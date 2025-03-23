@@ -1,3 +1,7 @@
+DROP DATABASE IF EXISTS employee_tracker_db;    
+CREATE DATABASE employee_tracker_db;
+\c employee_tracker_db;
+
 CREATE TABLE department (
     id SERIAL PRIMARY KEY,
     name VARCHAR(30) UNIQUE NOT NULL
@@ -20,3 +24,4 @@ CREATE TABLE employee (
     FOREIGN KEY (role_id) REFERENCES role (id),
     FOREIGN KEY (manager_id) REFERENCES employee (id)
 );
+\dt
